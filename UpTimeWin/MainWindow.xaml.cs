@@ -48,17 +48,17 @@ namespace UpTimeWin
             logs.MachineName = ".";
             var entries = logs.Entries.Cast<EventLogEntry>();
             var on = from e in entries
-                     where e.InstanceId == 2147489653 && e.Source.Contains("EventLog") && e.EntryType == EventLogEntryType.Information && e.TimeGenerated >= DateTime.Now.AddMonths(-1)
+                     where e.InstanceId == 2147489653 && e.Source.Contains("EventLog") && e.EntryType == EventLogEntryType.Information && e.TimeGenerated >= DateTime.Now.AddDays(-11)//DateTime.Now.AddMonths(-1)
                      select new OnOffEntry { EntryDate = e.TimeGenerated.Date, TimeGenerated = e.TimeGenerated, Type = "On" }; ;
             var off = from e in entries
-                      where e.InstanceId == 2147489654 && e.Source.Contains("EventLog") && e.EntryType == EventLogEntryType.Information && e.TimeGenerated >= DateTime.Now.AddMonths(-1)
+                      where e.InstanceId == 2147489654 && e.Source.Contains("EventLog") && e.EntryType == EventLogEntryType.Information && e.TimeGenerated >= DateTime.Now.AddDays(-11)//DateTime.Now.AddMonths(-1)
                       select new OnOffEntry { EntryDate = e.TimeGenerated.Date, TimeGenerated = e.TimeGenerated, Type = "Off" };
-            var sleep = from e in entries
-                        where e.InstanceId == 42 && e.Source.Contains("Kernel-Power") && e.EntryType == EventLogEntryType.Information && e.TimeGenerated >= DateTime.Now.AddMonths(-1)
-                        select new OnOffEntry { EntryDate = e.TimeGenerated.Date, TimeGenerated = e.TimeGenerated, Type = "Sleep" };
-            var awake = from e in entries
-                        where e.InstanceId == 1 && e.Source.Contains("Kernel-General") && e.EntryType == EventLogEntryType.Information && e.UserName == null && e.TimeGenerated >= DateTime.Now.AddMonths(-1)
-                        select new OnOffEntry { EntryDate = e.TimeGenerated.Date, TimeGenerated = e.TimeGenerated, Type = "Awake" };
+           // var sleep = from e in entries
+             //           where e.InstanceId == 42 && e.Source.Contains("Kernel-Power") && e.EntryType == EventLogEntryType.Information && e.TimeGenerated >= DateTime.Now.AddMonths(-1)
+               //         select new OnOffEntry { EntryDate = e.TimeGenerated.Date, TimeGenerated = e.TimeGenerated, Type = "Sleep" };
+            //var awake = from e in entries
+              //          where e.InstanceId == 1 && e.Source.Contains("Kernel-General") && e.EntryType == EventLogEntryType.Information && e.UserName == null && e.TimeGenerated >= DateTime.Now.AddMonths(-1)
+                //        select new OnOffEntry { EntryDate = e.TimeGenerated.Date, TimeGenerated = e.TimeGenerated, Type = "Awake" };
             List<OnOffEntry> temp = new List<OnOffEntry>();
             on.ToList().ForEach(x =>
             {
@@ -70,17 +70,17 @@ namespace UpTimeWin
                 if (temp.FirstOrDefault(y => y.TimeGenerated == x.TimeGenerated) == null)
                     temp.Add(x);
             });
-            sleep.ToList().ForEach(x =>
-            {
-                if (temp.FirstOrDefault(y => y.TimeGenerated == x.TimeGenerated) == null)
-                    temp.Add(x);
-            });
+          ////  sleep.ToList().ForEach(x =>
+          //  {
+          //      if (temp.FirstOrDefault(y => y.TimeGenerated == x.TimeGenerated) == null)
+          //          temp.Add(x);
+          //  });
 
-            awake.ToList().ForEach(x =>
-            {
-                if (temp.FirstOrDefault(y => y.TimeGenerated == x.TimeGenerated) == null)
-                    temp.Add(x);
-            });
+          //  //awake.ToList().ForEach(x =>
+          //  {
+          //      if (temp.FirstOrDefault(y => y.TimeGenerated == x.TimeGenerated) == null)
+          //          temp.Add(x);
+          //  });
             List<OnOffEntry> result = new List<OnOffEntry>();
             string actionType = "";
             OnOffEntry itemBefore = null;
@@ -102,17 +102,18 @@ namespace UpTimeWin
             {
                 Console.WriteLine(tempresult.EntryDate + " | " + tempresult.TimeGenerated + " | " + tempresult.Type);
             }*/
+            Dictionary<DateTime, List<TimeBlocks>> PcOnOffTime = new Dictionary<DateTime, List<TimeBlocks>>();
 
             for (int count = 0; count < result.Count - 1; count++)
             {
                 int nextCount = count + 1;
-                if (!PcOnOff.ContainsKey(result[count].EntryDate))
+                if (!PcOnOffTime.ContainsKey(result[count].EntryDate))
                 {
                     List<TimeBlocks> EachTimeBlocks = new List<TimeBlocks>();
-                    PcOnOff.Add(result[count].EntryDate, EachTimeBlocks);
+                    PcOnOffTime.Add(result[count].EntryDate, EachTimeBlocks);
                 }
 
-                PcOnOff[result[count].EntryDate].Add(new TimeBlocks
+                PcOnOffTime[result[count].EntryDate].Add(new TimeBlocks
                 {
                     EntryStartTime = result[count].TimeGenerated,
                     startAction = result[count].Type,
@@ -120,18 +121,35 @@ namespace UpTimeWin
                     stopAction = result[nextCount].Type
                 });
             }
-            if (!PcOnOff.ContainsKey(result.Last().EntryDate))
+
+            if (!PcOnOffTime.ContainsKey(result.Last().EntryDate))
             {
                 List<TimeBlocks> EachTimeBlocks = new List<TimeBlocks>();
-                PcOnOff.Add(result.Last().EntryDate, EachTimeBlocks);
+                PcOnOffTime.Add(result.Last().EntryDate, EachTimeBlocks);
             }
-            PcOnOff[result.Last().EntryDate].Add(new TimeBlocks
+            PcOnOffTime[result.Last().EntryDate].Add(new TimeBlocks
             {
                 EntryStartTime = result.Last().TimeGenerated,
                 startAction = result.Last().Type,
                 EntryStopTime = DateTime.Now,
-                stopAction = "On"
+                stopAction = "Off"
             });
+
+            PcOnOff = new Dictionary<DateTime, List<TimeBlocks>>(PcOnOffTime);
+            var firstKey = PcOnOffTime.ElementAt(0).Key;
+            for (int i = 1; i < PcOnOffTime.Count; i++)
+            {
+                var nextKey = PcOnOffTime.ElementAt(i).Key;
+                int days = 1;
+                while (firstKey.AddDays(days).CompareTo(nextKey) == -1)
+                {
+                    List<TimeBlocks> EachTimeBlocks = new List<TimeBlocks>();
+                    PcOnOff.Add(firstKey.AddDays(days), EachTimeBlocks);
+                    days++;
+                    //if()
+                }
+                firstKey = nextKey;
+            }
         }
         public void DrawData()
         {
@@ -203,7 +221,7 @@ namespace UpTimeWin
             MainGrid.ColumnDefinitions.Add(colTotalTime);
 
             int index = 0;
-            foreach (var item in PcOnOff.Keys)
+            foreach (var item in PcOnOff.Keys.OrderBy(x=> x))
             {
                 RowDefinition rowDef = new RowDefinition();
                 rowDef.Height = new GridLength(29);
